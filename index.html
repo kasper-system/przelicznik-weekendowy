@@ -1,0 +1,1070 @@
+<!doctype html>
+<html lang="pl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Przelicznik godzin weekendowych</title>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ["Inter", "ui-sans-serif", "system-ui", "Segoe UI", "Arial", "sans-serif"],
+            },
+          },
+        },
+      };
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+      :root {
+        color-scheme: light;
+      }
+
+      body {
+        background:
+          linear-gradient(180deg, rgba(240, 253, 250, 0.72), rgba(250, 250, 250, 0.88) 34%),
+          #fafafa;
+      }
+
+      .drop-active {
+        border-color: #0f766e !important;
+        background: #f0fdfa !important;
+        box-shadow: 0 0 0 4px rgba(20, 184, 166, 0.14);
+      }
+
+      .scrollbar-soft::-webkit-scrollbar {
+        height: 10px;
+        width: 10px;
+      }
+
+      .scrollbar-soft::-webkit-scrollbar-thumb {
+        background: #d4d4d8;
+        border-radius: 8px;
+      }
+    </style>
+  </head>
+  <body class="min-h-screen font-sans text-zinc-900 antialiased">
+    <main class="mx-auto flex min-h-screen max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
+      <header class="flex flex-col gap-4 border-b border-zinc-200 pb-5 md:flex-row md:items-end md:justify-between">
+        <div class="max-w-3xl">
+          <p class="text-sm font-semibold text-teal-700">Przelicznik weekendowy</p>
+          <div class="mt-2 text-4xl font-semibold text-zinc-950 sm:text-5xl">JK. KASPER</div>
+          <h1 class="mt-2 text-3xl font-semibold text-zinc-950">Analiza grafików</h1>
+          <p class="mt-2 text-sm leading-6 text-zinc-600">
+            Okno rozliczeniowe: piątek 22:00 - poniedziałek 06:00. Strefa dzienna: 06:00 - 22:00, strefa nocna: 22:00 - 06:00.
+          </p>
+        </div>
+        <button
+          id="downloadBtn"
+          class="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-teal-700 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:text-zinc-600"
+          type="button"
+          disabled
+        >
+          <svg aria-hidden="true" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path d="M12 3v12m0 0 4-4m-4 4-4-4" stroke-linecap="round" stroke-linejoin="round"></path>
+            <path d="M5 21h14" stroke-linecap="round"></path>
+          </svg>
+          Pobierz raport EXCEL
+        </button>
+      </header>
+
+      <section class="grid gap-5 lg:grid-cols-[390px_minmax(0,1fr)]">
+        <aside class="flex flex-col gap-5">
+          <div class="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
+            <h2 class="text-base font-semibold text-zinc-950">Stawki godzinowe</h2>
+            <div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+              <label class="block">
+                <span class="text-sm font-medium text-zinc-700">Godzina dzienna</span>
+                <div class="mt-2 flex h-11 items-center rounded-lg border border-zinc-300 bg-white px-3 focus-within:border-teal-700 focus-within:ring-4 focus-within:ring-teal-100">
+                  <input
+                    id="dayRate"
+                    class="w-full border-0 bg-transparent text-base font-semibold outline-none placeholder:text-zinc-400"
+                    inputmode="decimal"
+                    type="text"
+                    value="2,20"
+                    aria-label="Stawka za godzinę dzienną"
+                  />
+                  <span class="ml-2 text-sm text-zinc-500">zł</span>
+                </div>
+              </label>
+              <label class="block">
+                <span class="text-sm font-medium text-zinc-700">Godzina nocna</span>
+                <div class="mt-2 flex h-11 items-center rounded-lg border border-zinc-300 bg-white px-3 focus-within:border-teal-700 focus-within:ring-4 focus-within:ring-teal-100">
+                  <input
+                    id="nightRate"
+                    class="w-full border-0 bg-transparent text-base font-semibold outline-none placeholder:text-zinc-400"
+                    inputmode="decimal"
+                    type="text"
+                    value="1,10"
+                    aria-label="Stawka za godzinę nocną"
+                  />
+                  <span class="ml-2 text-sm text-zinc-500">zł</span>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <label
+            id="dropZone"
+            class="flex min-h-[240px] cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-zinc-300 bg-white px-6 text-center shadow-sm transition hover:border-teal-600 hover:bg-teal-50"
+            for="fileInput"
+          >
+            <span class="flex h-14 w-14 items-center justify-center rounded-lg bg-teal-50 text-teal-700">
+              <svg aria-hidden="true" class="h-7 w-7" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                <path d="M12 16V4m0 0 4 4m-4-4-4 4" stroke-linecap="round" stroke-linejoin="round"></path>
+                <path d="M20 16.5V19a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2.5" stroke-linecap="round"></path>
+              </svg>
+            </span>
+            <span class="mt-4 text-lg font-semibold text-zinc-950">Upuść plik Excel</span>
+            <span class="mt-1 text-sm text-zinc-500">albo kliknij, aby wybrać plik .xlsx</span>
+            <span id="fileName" class="mt-4 max-w-full truncate rounded-lg bg-zinc-100 px-3 py-1 text-sm font-medium text-zinc-700">Brak pliku</span>
+            <span class="mt-3 text-xs font-medium text-zinc-400">Parser v3.3</span>
+            <input id="fileInput" class="hidden" type="file" accept=".xlsx,.xls" />
+          </label>
+
+          <div id="statusBox" class="hidden rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900"></div>
+        </aside>
+
+        <section class="flex min-w-0 flex-col gap-5">
+          <div class="grid gap-4 sm:grid-cols-3">
+            <div class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
+              <p class="text-sm font-medium text-zinc-500">Pracownicy</p>
+              <p id="employeesCount" class="mt-2 text-2xl font-semibold text-zinc-950">0</p>
+            </div>
+            <div class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
+              <p class="text-sm font-medium text-zinc-500">Godziny razem</p>
+              <p id="hoursTotal" class="mt-2 text-2xl font-semibold text-zinc-950">0,00</p>
+            </div>
+            <div class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
+              <p class="text-sm font-medium text-zinc-500">Zarobek razem</p>
+              <p id="earningsTotal" class="mt-2 text-2xl font-semibold text-zinc-950">0,00 zł</p>
+            </div>
+          </div>
+
+          <div class="min-w-0 rounded-lg border border-zinc-200 bg-white shadow-sm">
+            <div class="flex flex-col gap-1 border-b border-zinc-200 p-5 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h2 class="text-base font-semibold text-zinc-950">Wyniki</h2>
+                <p id="layoutInfo" class="mt-1 text-sm text-zinc-500">Wczytaj grafik, aby zobaczyć podsumowanie.</p>
+              </div>
+            </div>
+            <div class="scrollbar-soft overflow-x-auto">
+              <table class="min-w-full table-fixed divide-y divide-zinc-200">
+                <thead class="bg-zinc-50">
+                  <tr>
+                    <th class="w-[38%] px-5 py-3 text-left text-sm font-semibold text-zinc-700">Pracownik</th>
+                    <th class="w-[20%] px-5 py-3 text-right text-sm font-semibold text-zinc-700">Suma godzin dziennych</th>
+                    <th class="w-[20%] px-5 py-3 text-right text-sm font-semibold text-zinc-700">Suma godzin nocnych</th>
+                    <th class="w-[22%] px-5 py-3 text-right text-sm font-semibold text-zinc-700">Łączny zarobek</th>
+                  </tr>
+                </thead>
+                <tbody id="resultsBody" class="divide-y divide-zinc-100 bg-white">
+                  <tr>
+                    <td class="px-5 py-10 text-center text-sm text-zinc-500" colspan="4">Nie wczytano jeszcze danych.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script>
+      const WEEKEND_START = 22 * 60;
+      const WEEKEND_END = 3 * 24 * 60 + 6 * 60;
+      const DAY_START = 6 * 60;
+      const NIGHT_START = 22 * 60;
+      const DAY_OFFSETS = {
+        pt: 0,
+        sob: 1,
+        niedz: 2,
+        pon: 3,
+      };
+      const WEEKEND_DAYS = new Set(Object.keys(DAY_OFFSETS));
+      const ALL_DAY_KEYS = new Set(["pon", "pn", "poniedzialek", "wt", "wtorek", "sr", "sroda", "czw", "czwartek", "pt", "pi", "piatek", "sob", "so", "sobota", "niedz", "nd", "ndz", "nie", "niedziela"]);
+
+      const els = {
+        dayRate: document.getElementById("dayRate"),
+        nightRate: document.getElementById("nightRate"),
+        dropZone: document.getElementById("dropZone"),
+        fileInput: document.getElementById("fileInput"),
+        fileName: document.getElementById("fileName"),
+        statusBox: document.getElementById("statusBox"),
+        resultsBody: document.getElementById("resultsBody"),
+        employeesCount: document.getElementById("employeesCount"),
+        hoursTotal: document.getElementById("hoursTotal"),
+        earningsTotal: document.getElementById("earningsTotal"),
+        layoutInfo: document.getElementById("layoutInfo"),
+        downloadBtn: document.getElementById("downloadBtn"),
+      };
+
+      let parsedEmployees = [];
+      let activeFileName = "";
+      let activeLayoutName = "";
+
+      function cleanCell(value) {
+        return String(value ?? "").replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim();
+      }
+
+      function normalizeText(value) {
+        return cleanCell(value)
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "");
+      }
+
+      function normalizeDay(value) {
+        return normalizeText(value).replace(/[.\s]/g, "");
+      }
+
+      function normalizeWeekendDay(value) {
+        const dayKey = normalizeDay(value);
+        const aliases = {
+          pn: "pon",
+          poniedzialek: "pon",
+          pi: "pt",
+          piatek: "pt",
+          so: "sob",
+          sobota: "sob",
+          nd: "niedz",
+          ndz: "niedz",
+          nie: "niedz",
+          niedziela: "niedz",
+        };
+        return aliases[dayKey] || dayKey;
+      }
+
+      function isEmployeeHeader(value) {
+        const text = normalizeText(value);
+        return /imie.*nazwisko/.test(text) || text === "pracownik" || text === "pracownicy";
+      }
+
+      function isDateLike(value) {
+        return /^\d{1,2}[./-]\d{1,2}(?:[./-]\d{2,4})?$/.test(cleanCell(value));
+      }
+
+      function isLikelyEmployeeName(value) {
+        const text = cleanCell(value);
+        const normalized = normalizeText(value);
+        const dayKey = normalizeDay(value);
+
+        if (!text) return false;
+        if (parseShift(value)) return false;
+        if (ALL_DAY_KEYS.has(dayKey)) return false;
+        if (isEmployeeHeader(value) || isDateLike(value)) return false;
+        if (/^(w|uw|ch|n|s|whs)$/i.test(text)) return false;
+        if (/^(suma|razem|oznaczenia dni|oddzial|grafik)/.test(normalized)) return false;
+        if (/^\d+(?:[,.]\d+)?$/.test(text)) return false;
+
+        return true;
+      }
+
+      function columnLabel(columnIndex) {
+        let index = columnIndex + 1;
+        let label = "";
+        while (index > 0) {
+          const remainder = (index - 1) % 26;
+          label = String.fromCharCode(65 + remainder) + label;
+          index = Math.floor((index - 1) / 26);
+        }
+        return label;
+      }
+
+      function parseMoney(value) {
+        const normalized = String(value ?? "").replace(/\s/g, "").replace(",", ".");
+        const number = Number(normalized);
+        return Number.isFinite(number) ? number : 0;
+      }
+
+      function formatHours(value) {
+        return new Intl.NumberFormat("pl-PL", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        }).format(value);
+      }
+
+      function formatMoney(value) {
+        return new Intl.NumberFormat("pl-PL", {
+          style: "currency",
+          currency: "PLN",
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        }).format(value);
+      }
+
+      function parseShift(value) {
+        const text = cleanCell(value);
+        const match = text.match(/^(\d{1,2}):([0-5]\d)\s*[-–—]\s*(\d{1,2}):([0-5]\d)$/);
+        if (!match) return null;
+
+        const startHour = Number(match[1]);
+        const startMinute = Number(match[2]);
+        const endHour = Number(match[3]);
+        const endMinute = Number(match[4]);
+
+        if (startHour > 23 || endHour > 23) return null;
+
+        return {
+          text,
+          start: startHour * 60 + startMinute,
+          end: endHour * 60 + endMinute,
+        };
+      }
+
+      function splitWeekendMinutes(startAbs, endAbs) {
+        const start = Math.max(startAbs, WEEKEND_START);
+        const end = Math.min(endAbs, WEEKEND_END);
+        let dayMinutes = 0;
+        let nightMinutes = 0;
+
+        if (end <= start) {
+          return { dayHours: 0, nightHours: 0 };
+        }
+
+        let cursor = start;
+        while (cursor < end) {
+          const dayBase = Math.floor(cursor / 1440) * 1440;
+          const minuteOfDay = cursor - dayBase;
+          let boundary;
+          let isNight;
+
+          if (minuteOfDay < DAY_START) {
+            boundary = dayBase + DAY_START;
+            isNight = true;
+          } else if (minuteOfDay < NIGHT_START) {
+            boundary = dayBase + NIGHT_START;
+            isNight = false;
+          } else {
+            boundary = dayBase + 1440;
+            isNight = true;
+          }
+
+          const next = Math.min(boundary, end);
+          if (isNight) {
+            nightMinutes += next - cursor;
+          } else {
+            dayMinutes += next - cursor;
+          }
+          cursor = next;
+        }
+
+        return {
+          dayHours: dayMinutes / 60,
+          nightHours: nightMinutes / 60,
+        };
+      }
+
+      function calculateWeekendHours(dayKey, shift) {
+        if (!WEEKEND_DAYS.has(dayKey)) {
+          return { dayHours: 0, nightHours: 0 };
+        }
+
+        const dayOffset = DAY_OFFSETS[dayKey] * 1440;
+        let startAbs = dayOffset + shift.start;
+        let endAbs = dayOffset + shift.end;
+
+        if (endAbs <= startAbs) {
+          endAbs += 1440;
+        }
+
+        return splitWeekendMinutes(startAbs, endAbs);
+      }
+
+      function emptyEmployee(name, columnIndex = null) {
+        return {
+          name,
+          columnIndex,
+          dayHours: 0,
+          nightHours: 0,
+          shiftsCount: 0,
+        };
+      }
+
+      function addHours(employee, hours) {
+        if (hours.dayHours === 0 && hours.nightHours === 0) return;
+        employee.dayHours += hours.dayHours;
+        employee.nightHours += hours.nightHours;
+        employee.shiftsCount += 1;
+      }
+
+      function getMaxColumns(rows) {
+        return rows.reduce((max, row) => Math.max(max, row.length), 0);
+      }
+
+      function countDaysInColumn(rows, startRowIndex, columnIndex) {
+        let count = 0;
+        for (let r = startRowIndex; r < rows.length; r += 1) {
+          if (ALL_DAY_KEYS.has(normalizeDay(rows[r]?.[columnIndex]))) {
+            count += 1;
+          }
+        }
+        return count;
+      }
+
+      function detectDayColumn(rows, headerRowIndex, headerColumnIndex, maxColumns) {
+        let bestColumn = headerColumnIndex;
+        let bestCount = countDaysInColumn(rows, headerRowIndex + 1, headerColumnIndex);
+
+        for (let c = 0; c < maxColumns; c += 1) {
+          const count = countDaysInColumn(rows, headerRowIndex + 1, c);
+          if (count > bestCount) {
+            bestColumn = c;
+            bestCount = count;
+          }
+        }
+
+        return bestCount >= 2 ? bestColumn : headerColumnIndex;
+      }
+
+      function collectScheduleRows(rows, headerRowIndex, dayColumnIndex) {
+        const scheduleRows = [];
+        for (let r = headerRowIndex + 1; r < rows.length; r += 1) {
+          const dayKey = normalizeWeekendDay(rows[r]?.[dayColumnIndex]);
+          if (WEEKEND_DAYS.has(dayKey)) {
+            scheduleRows.push({ rowIndex: r, dayKey });
+          }
+        }
+        return scheduleRows;
+      }
+
+      function countLikelyNamesToRight(row, startColumnIndex) {
+        if (!row) return 0;
+        return row.slice(startColumnIndex).filter((cell) => isLikelyEmployeeName(cell)).length;
+      }
+
+      function collectEmployeeColumns(rows, headerRowIndex, dayColumnIndex, scheduleRows, maxColumns, startColumnIndex = dayColumnIndex + 1) {
+        const employees = [];
+
+        for (let c = startColumnIndex; c < maxColumns; c += 1) {
+          const headerValue = cleanCell(rows[headerRowIndex]?.[c]);
+          const hasWeekendShift = scheduleRows.some(({ rowIndex }) => parseShift(rows[rowIndex]?.[c]));
+          let name = "";
+
+          if (isLikelyEmployeeName(headerValue)) {
+            name = headerValue;
+          } else if (!headerValue && hasWeekendShift) {
+            name = `Kolumna ${columnLabel(c)}`;
+          }
+
+          if (name) {
+            employees.push(emptyEmployee(name, c));
+          }
+        }
+
+        return employees;
+      }
+
+      function parseAttachedLayout(rows) {
+        const maxColumns = getMaxColumns(rows);
+        let headerRowIndex = -1;
+        let dayColumnIndex = -1;
+
+        for (let r = 0; r < rows.length; r += 1) {
+          for (let c = 0; c < maxColumns; c += 1) {
+            if (isEmployeeHeader(rows[r]?.[c])) {
+              headerRowIndex = r;
+              dayColumnIndex = detectDayColumn(rows, r, c, maxColumns);
+              break;
+            }
+          }
+          if (headerRowIndex !== -1) break;
+        }
+
+        if (headerRowIndex === -1) {
+          const candidates = [];
+          for (let c = 0; c < maxColumns; c += 1) {
+            const dayRows = rows
+              .map((row, rowIndex) => ({ rowIndex, day: normalizeDay(row?.[c]) }))
+              .filter((item) => ALL_DAY_KEYS.has(item.day));
+
+            if (dayRows.length >= 3) {
+              candidates.push({ columnIndex: c, firstDayRow: dayRows[0].rowIndex, count: dayRows.length });
+            }
+          }
+
+          candidates.sort((a, b) => b.count - a.count);
+          const best = candidates[0];
+          if (!best) return null;
+
+          dayColumnIndex = best.columnIndex;
+          for (let r = Math.max(0, best.firstDayRow - 4); r < best.firstDayRow; r += 1) {
+            const namesToRight = countLikelyNamesToRight(rows[r], dayColumnIndex + 1);
+            if (namesToRight >= 2) {
+              headerRowIndex = r;
+            }
+          }
+        }
+
+        if (headerRowIndex === -1 || dayColumnIndex === -1) return null;
+
+        const scheduleRows = collectScheduleRows(rows, headerRowIndex, dayColumnIndex);
+        if (scheduleRows.length === 0) return null;
+
+        const employees = collectEmployeeColumns(rows, headerRowIndex, dayColumnIndex, scheduleRows, maxColumns);
+
+        if (employees.length === 0) return null;
+
+        scheduleRows.forEach(({ rowIndex, dayKey }) => {
+          employees.forEach((employee) => {
+            const shift = parseShift(rows[rowIndex]?.[employee.columnIndex]);
+            if (!shift) return;
+            addHours(employee, calculateWeekendHours(dayKey, shift));
+          });
+        });
+
+        return {
+          layoutName: "Układ z załącznika: nazwiska w wierszu 2, dni w kolumnie C",
+          employees,
+        };
+      }
+
+      function parseColumnAEmployeesLayout(rows) {
+        const maxColumns = getMaxColumns(rows);
+        let headerRowIndex = -1;
+        let nameColumnIndex = 0;
+        let dayColumns = [];
+
+        for (let r = 0; r < rows.length; r += 1) {
+          const currentDayColumns = [];
+          for (let c = 0; c < maxColumns; c += 1) {
+            const dayKey = normalizeWeekendDay(rows[r]?.[c]);
+            if (WEEKEND_DAYS.has(dayKey)) {
+              currentDayColumns.push({ columnIndex: c, dayKey });
+            }
+            if (isEmployeeHeader(rows[r]?.[c])) {
+              nameColumnIndex = c;
+            }
+          }
+
+          if (currentDayColumns.length >= 2) {
+            headerRowIndex = r;
+            dayColumns = currentDayColumns;
+            break;
+          }
+        }
+
+        if (headerRowIndex === -1 || dayColumns.length === 0) return null;
+
+        const employees = [];
+        for (let r = headerRowIndex + 1; r < rows.length; r += 1) {
+          const name = cleanCell(rows[r]?.[nameColumnIndex]);
+          const hasAnyRosterCell = dayColumns.some(({ columnIndex }) => cleanCell(rows[r]?.[columnIndex]));
+          if (!isLikelyEmployeeName(name) || !hasAnyRosterCell) continue;
+
+          const employee = emptyEmployee(name);
+          dayColumns.forEach(({ columnIndex, dayKey }) => {
+            const shift = parseShift(rows[r]?.[columnIndex]);
+            if (!shift) return;
+            addHours(employee, calculateWeekendHours(dayKey, shift));
+          });
+          employees.push(employee);
+        }
+
+        if (employees.length === 0) return null;
+
+        return {
+          layoutName: "Układ alternatywny: nazwiska w kolumnie A, dni w nagłówku",
+          employees,
+        };
+      }
+
+      function parseFlexibleScheduleLayout(rows) {
+        const maxColumns = getMaxColumns(rows);
+        const candidates = [];
+
+        for (let c = 0; c < maxColumns; c += 1) {
+          let firstDayRow = -1;
+          let count = 0;
+
+          for (let r = 0; r < rows.length; r += 1) {
+            if (ALL_DAY_KEYS.has(normalizeDay(rows[r]?.[c]))) {
+              if (firstDayRow === -1) firstDayRow = r;
+              count += 1;
+            }
+          }
+
+          if (count >= 3) {
+            candidates.push({ columnIndex: c, firstDayRow, count });
+          }
+        }
+
+        candidates.sort((a, b) => b.count - a.count);
+
+        for (const candidate of candidates) {
+          const dayColumnIndex = candidate.columnIndex;
+          const firstPossibleHeader = Math.max(0, candidate.firstDayRow - 8);
+
+          for (let headerRowIndex = candidate.firstDayRow - 1; headerRowIndex >= firstPossibleHeader; headerRowIndex -= 1) {
+            const scheduleRows = collectScheduleRows(rows, headerRowIndex, dayColumnIndex);
+            if (scheduleRows.length === 0) continue;
+
+            const employees = collectEmployeeColumns(rows, headerRowIndex, dayColumnIndex, scheduleRows, maxColumns);
+            if (employees.length === 0) continue;
+
+            scheduleRows.forEach(({ rowIndex, dayKey }) => {
+              employees.forEach((employee) => {
+                const shift = parseShift(rows[rowIndex]?.[employee.columnIndex]);
+                if (!shift) return;
+                addHours(employee, calculateWeekendHours(dayKey, shift));
+              });
+            });
+
+            return {
+              layoutName: "Układ elastyczny: automatycznie wykryto kolumnę dni i pracowników",
+              employees,
+            };
+          }
+        }
+
+        return null;
+      }
+
+      function findScheduleMonthYear(rows) {
+        for (const row of rows) {
+          for (const cell of row) {
+            const text = cleanCell(cell);
+            const rangeMatch = text.match(/\b\d{1,2}\s*-\s*\d{1,2}[./-](\d{1,2})[./-](\d{4})\b/);
+            if (rangeMatch) {
+              return { month: Number(rangeMatch[1]), year: Number(rangeMatch[2]) };
+            }
+
+            const dateMatch = text.match(/\b\d{1,2}[./-](\d{1,2})[./-](\d{4})\b/);
+            if (dateMatch) {
+              return { month: Number(dateMatch[1]), year: Number(dateMatch[2]) };
+            }
+          }
+        }
+
+        return null;
+      }
+
+      function parseDateCell(value, fallback) {
+        const text = cleanCell(value);
+        const serial = Number(text.replace(",", "."));
+        if (Number.isFinite(serial) && serial >= 20000 && serial <= 80000) {
+          const utcTime = Math.round((serial - 25569) * 86400 * 1000);
+          const date = new Date(utcTime);
+          const dateInfo = {
+            day: date.getUTCDate(),
+            month: date.getUTCMonth() + 1,
+            year: date.getUTCFullYear(),
+          };
+
+          if (!fallback || !fallback.year || dateInfo.year === fallback.year) {
+            return dateInfo;
+          }
+        }
+
+        const match = text.match(/^(\d{1,2})[./-](\d{1,2})(?:[./-](\d{2,4}))?$/);
+        if (!match) return null;
+
+        const day = Number(match[1]);
+        const month = Number(match[2]);
+        let year = match[3] ? Number(match[3]) : fallback?.year;
+        if (year && year < 100) year += 2000;
+
+        if (!day || !month || !year) return null;
+        return { day, month, year };
+      }
+
+      function dateToDayKey(dateInfo) {
+        const date = new Date(dateInfo.year, dateInfo.month - 1, dateInfo.day, 12, 0, 0);
+        if (date.getFullYear() !== dateInfo.year || date.getMonth() !== dateInfo.month - 1 || date.getDate() !== dateInfo.day) {
+          return "";
+        }
+
+        return ["niedz", "pon", "wt", "sr", "czw", "pt", "sob"][date.getDay()];
+      }
+
+      function parseDateColumnLayout(rows) {
+        const maxColumns = getMaxColumns(rows);
+        const fallback = findScheduleMonthYear(rows);
+        if (!fallback) return null;
+
+        const candidates = [];
+
+        for (let c = 0; c < maxColumns; c += 1) {
+          let count = 0;
+          let firstDateRow = -1;
+
+          for (let r = 0; r < rows.length; r += 1) {
+            if (parseDateCell(rows[r]?.[c], fallback)) {
+              if (firstDateRow === -1) firstDateRow = r;
+              count += 1;
+            }
+          }
+
+          if (count >= 3) {
+            candidates.push({ columnIndex: c, firstDateRow, count });
+          }
+        }
+
+        candidates.sort((a, b) => b.count - a.count);
+
+        for (const candidate of candidates) {
+          const dateColumnIndex = candidate.columnIndex;
+          const headerRowIndex = Math.max(0, candidate.firstDateRow - 1);
+          const hasSeparateDayColumn = countDaysInColumn(rows, candidate.firstDateRow, dateColumnIndex + 1) >= 3;
+          const startColumnIndex = hasSeparateDayColumn ? dateColumnIndex + 2 : dateColumnIndex + 1;
+          const scheduleRows = [];
+
+          for (let r = candidate.firstDateRow; r < rows.length; r += 1) {
+            const dateInfo = parseDateCell(rows[r]?.[dateColumnIndex], fallback);
+            if (!dateInfo) continue;
+
+            const dayKey = dateToDayKey(dateInfo);
+            if (WEEKEND_DAYS.has(dayKey)) {
+              scheduleRows.push({ rowIndex: r, dayKey });
+            }
+          }
+
+          if (scheduleRows.length === 0) continue;
+
+          const employees = collectEmployeeColumns(rows, headerRowIndex, dateColumnIndex, scheduleRows, maxColumns, startColumnIndex);
+          if (employees.length === 0) continue;
+
+          scheduleRows.forEach(({ rowIndex, dayKey }) => {
+            employees.forEach((employee) => {
+              const shift = parseShift(rows[rowIndex]?.[employee.columnIndex]);
+              if (!shift) return;
+              addHours(employee, calculateWeekendHours(dayKey, shift));
+            });
+          });
+
+          return {
+            layoutName: "Układ dat: automatycznie wyliczono dni tygodnia z dat grafiku",
+            employees,
+          };
+        }
+
+        return null;
+      }
+
+      function parseSchedule(rows) {
+        const attachedLayout = parseAttachedLayout(rows);
+        if (attachedLayout) return attachedLayout;
+
+        const columnALayout = parseColumnAEmployeesLayout(rows);
+        if (columnALayout) return columnALayout;
+
+        const flexibleLayout = parseFlexibleScheduleLayout(rows);
+        if (flexibleLayout) return flexibleLayout;
+
+        const dateColumnLayout = parseDateColumnLayout(rows);
+        if (dateColumnLayout) return dateColumnLayout;
+
+        throw new Error("Nie znaleziono tabeli z nazwiskami i skrótami dni tygodnia.");
+      }
+
+      function buildParsingDebug(rows, sheetName) {
+        const maxColumns = getMaxColumns(rows);
+        const headerFound = rows.some((row) => row.some((cell) => isEmployeeHeader(cell)));
+        const dayColumnStats = [];
+
+        for (let c = 0; c < maxColumns; c += 1) {
+          const dayCount = countDaysInColumn(rows, 0, c);
+          if (dayCount > 0) {
+            dayColumnStats.push(`${columnLabel(c)}:${dayCount}`);
+          }
+        }
+
+        const firstRows = rows
+          .slice(0, 5)
+          .map((row, index) => {
+            const preview = row.slice(0, Math.min(maxColumns, 8)).map((cell) => cleanCell(cell) || "·").join(" | ");
+            return `${index + 1}: ${preview}`;
+          })
+          .join(" / ");
+
+        return `Arkusz: ${sheetName || "pierwszy"}, wiersze: ${rows.length}, kolumny: ${maxColumns}, nagłówek: ${headerFound ? "tak" : "nie"}, dni: ${dayColumnStats.join(", ") || "brak"}. Podgląd: ${firstRows}`;
+      }
+
+      function calculateRowsWithEarnings() {
+        const dayRate = parseMoney(els.dayRate.value);
+        const nightRate = parseMoney(els.nightRate.value);
+
+        return parsedEmployees.map((employee) => {
+          const dayHours = round2(employee.dayHours);
+          const nightHours = round2(employee.nightHours);
+          const earnings = round2(dayHours * dayRate + nightHours * nightRate);
+          return {
+            name: employee.name,
+            dayHours,
+            nightHours,
+            earnings,
+          };
+        });
+      }
+
+      function round2(value) {
+        return Math.round((value + Number.EPSILON) * 100) / 100;
+      }
+
+      function renderResults() {
+        const rows = calculateRowsWithEarnings();
+        const totals = rows.reduce(
+          (sum, row) => ({
+            dayHours: sum.dayHours + row.dayHours,
+            nightHours: sum.nightHours + row.nightHours,
+            earnings: sum.earnings + row.earnings,
+          }),
+          { dayHours: 0, nightHours: 0, earnings: 0 },
+        );
+
+        els.employeesCount.textContent = String(rows.length);
+        els.hoursTotal.textContent = formatHours(totals.dayHours + totals.nightHours);
+        els.earningsTotal.textContent = formatMoney(totals.earnings);
+        els.downloadBtn.disabled = rows.length === 0;
+
+        if (rows.length === 0) {
+          els.resultsBody.innerHTML = '<tr><td class="px-5 py-10 text-center text-sm text-zinc-500" colspan="4">Nie wczytano jeszcze danych.</td></tr>';
+          return;
+        }
+
+        els.resultsBody.innerHTML = rows
+          .map(
+            (row) => `
+              <tr class="transition hover:bg-zinc-50">
+                <td class="truncate px-5 py-4 text-sm font-medium text-zinc-950">${escapeHtml(row.name)}</td>
+                <td class="px-5 py-4 text-right text-sm tabular-nums text-zinc-700">${formatHours(row.dayHours)}</td>
+                <td class="px-5 py-4 text-right text-sm tabular-nums text-zinc-700">${formatHours(row.nightHours)}</td>
+                <td class="px-5 py-4 text-right text-sm font-semibold tabular-nums text-teal-800">${formatMoney(row.earnings)}</td>
+              </tr>
+            `,
+          )
+          .join("");
+      }
+
+      function escapeHtml(value) {
+        return String(value)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+      }
+
+      function showStatus(message, tone = "warning") {
+        els.statusBox.className =
+          tone === "error"
+            ? "rounded-lg border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-900"
+            : "rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900";
+        els.statusBox.textContent = message;
+        els.statusBox.classList.remove("hidden");
+      }
+
+      function hideStatus() {
+        els.statusBox.classList.add("hidden");
+        els.statusBox.textContent = "";
+      }
+
+      function getSheetCellText(sheet, rowIndex, columnIndex) {
+        const address = XLSX.utils.encode_cell({ r: rowIndex, c: columnIndex });
+        const cell = sheet[address];
+        if (!cell) return "";
+        if (typeof cell.w === "string") return cell.w;
+        if (cell.v === undefined || cell.v === null) return "";
+        return String(cell.v);
+      }
+
+      function getSheetBounds(sheet) {
+        const bounds = [];
+        const reference = sheet["!ref"];
+
+        if (reference) {
+          try {
+            bounds.push(XLSX.utils.decode_range(reference));
+          } catch {
+            // Ignore broken worksheet dimension metadata.
+          }
+        }
+
+        const cellAddresses = Object.keys(sheet).filter((key) => /^[A-Z]{1,4}\d+$/.test(key));
+        if (cellAddresses.length > 0) {
+          const decoded = cellAddresses.map((address) => XLSX.utils.decode_cell(address));
+          bounds.push({
+            s: {
+              r: Math.min(...decoded.map((cell) => cell.r)),
+              c: Math.min(...decoded.map((cell) => cell.c)),
+            },
+            e: {
+              r: Math.max(...decoded.map((cell) => cell.r)),
+              c: Math.max(...decoded.map((cell) => cell.c)),
+            },
+          });
+        }
+
+        if (bounds.length === 0) return null;
+
+        return {
+          s: {
+            r: Math.min(...bounds.map((range) => range.s.r)),
+            c: Math.min(...bounds.map((range) => range.s.c)),
+          },
+          e: {
+            r: Math.max(...bounds.map((range) => range.e.r)),
+            c: Math.max(...bounds.map((range) => range.e.c)),
+          },
+        };
+      }
+
+      function sheetToRows(sheet) {
+        const range = getSheetBounds(sheet);
+        if (!range) return [];
+
+        const rows = [];
+
+        for (let r = range.s.r; r <= range.e.r; r += 1) {
+          const row = [];
+          for (let c = range.s.c; c <= range.e.c; c += 1) {
+            row.push(getSheetCellText(sheet, r, c));
+          }
+          rows.push(row);
+        }
+
+        return rows;
+      }
+
+      function readExcelFile(file) {
+        if (!window.XLSX) {
+          throw new Error("Biblioteka SheetJS nie została załadowana.");
+        }
+
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            try {
+              const data = new Uint8Array(event.target.result);
+              const workbook = XLSX.read(data, { type: "array", cellDates: false, nodim: true });
+              const firstSheetName = workbook.SheetNames[0];
+              const sheet = workbook.Sheets[firstSheetName];
+              const rows = sheetToRows(sheet);
+              resolve({ rows, firstSheetName });
+            } catch (error) {
+              reject(error);
+            }
+          };
+          reader.onerror = () => reject(new Error("Nie udało się odczytać pliku."));
+          reader.readAsArrayBuffer(file);
+        });
+      }
+
+      async function handleFile(file) {
+        hideStatus();
+        if (!file) return;
+
+        activeFileName = file.name;
+        els.fileName.textContent = file.name;
+        let parsingDebug = "";
+
+        try {
+          const { rows, firstSheetName } = await readExcelFile(file);
+          parsingDebug = buildParsingDebug(rows, firstSheetName);
+          const parsed = parseSchedule(rows);
+          activeLayoutName = parsed.layoutName;
+          parsedEmployees = parsed.employees;
+          els.layoutInfo.textContent = `${activeLayoutName}. Arkusz: ${firstSheetName}.`;
+          renderResults();
+
+          const withNoHours = parsedEmployees.filter((employee) => employee.dayHours === 0 && employee.nightHours === 0).length;
+          if (withNoHours > 0) {
+            showStatus(`Wczytano dane. ${withNoHours} pracownikom nie przypisano godzin w oknie weekendowym.`, "warning");
+          }
+        } catch (error) {
+          parsedEmployees = [];
+          activeLayoutName = "";
+          els.layoutInfo.textContent = "Nie udało się wczytać grafiku.";
+          renderResults();
+          const message = error.message || "Nie udało się przeanalizować pliku.";
+          showStatus(parsingDebug ? `${message} Diagnostyka: ${parsingDebug}` : message, "error");
+        }
+      }
+
+      function downloadReport() {
+        if (!parsedEmployees.length || !window.XLSX) return;
+
+        const rows = calculateRowsWithEarnings();
+        const totals = rows.reduce(
+          (sum, row) => ({
+            dayHours: sum.dayHours + row.dayHours,
+            nightHours: sum.nightHours + row.nightHours,
+            earnings: sum.earnings + row.earnings,
+          }),
+          { dayHours: 0, nightHours: 0, earnings: 0 },
+        );
+
+        const dayRate = parseMoney(els.dayRate.value);
+        const nightRate = parseMoney(els.nightRate.value);
+        const now = new Date();
+        const dateStamp = now.toISOString().slice(0, 10);
+
+        const data = [
+          ["Raport godzin weekendowych"],
+          ["Plik źródłowy", activeFileName],
+          ["Układ", activeLayoutName],
+          ["Stawka dzienna", dayRate],
+          ["Stawka nocna", nightRate],
+          [],
+          ["Pracownik", "Suma godzin dziennych", "Suma godzin nocnych", "Łączny zarobek"],
+          ...rows.map((row) => [row.name, row.dayHours, row.nightHours, row.earnings]),
+          ["RAZEM", round2(totals.dayHours), round2(totals.nightHours), round2(totals.earnings)],
+        ];
+
+        const worksheet = XLSX.utils.aoa_to_sheet(data);
+        worksheet["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 3 } }];
+        worksheet["!cols"] = [
+          { wch: 32 },
+          { wch: 22 },
+          { wch: 22 },
+          { wch: 18 },
+        ];
+
+        for (let r = 7; r < data.length; r += 1) {
+          const dayCell = worksheet[XLSX.utils.encode_cell({ r, c: 1 })];
+          const nightCell = worksheet[XLSX.utils.encode_cell({ r, c: 2 })];
+          const moneyCell = worksheet[XLSX.utils.encode_cell({ r, c: 3 })];
+          if (dayCell) dayCell.z = "0.00";
+          if (nightCell) nightCell.z = "0.00";
+          if (moneyCell) moneyCell.z = '#,##0.00 "zł"';
+        }
+
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Raport");
+        XLSX.writeFile(workbook, `raport_weekendowy_${dateStamp}.xlsx`);
+      }
+
+      ["dragenter", "dragover"].forEach((eventName) => {
+        els.dropZone.addEventListener(eventName, (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          els.dropZone.classList.add("drop-active");
+        });
+      });
+
+      ["dragleave", "drop"].forEach((eventName) => {
+        els.dropZone.addEventListener(eventName, (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          els.dropZone.classList.remove("drop-active");
+        });
+      });
+
+      els.dropZone.addEventListener("drop", (event) => {
+        const file = event.dataTransfer.files?.[0];
+        handleFile(file);
+      });
+
+      els.fileInput.addEventListener("change", (event) => {
+        const file = event.target.files?.[0];
+        handleFile(file);
+      });
+
+      els.dayRate.addEventListener("input", renderResults);
+      els.nightRate.addEventListener("input", renderResults);
+      els.downloadBtn.addEventListener("click", downloadReport);
+    </script>
+  </body>
+</html>
